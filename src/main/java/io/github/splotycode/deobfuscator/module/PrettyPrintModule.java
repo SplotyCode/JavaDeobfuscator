@@ -7,11 +7,15 @@ public class PrettyPrintModule extends Module {
 
     @Override
     public boolean transform(ClassNode classNode) {
+        System.out.println(classNode.name);
         for (MethodNode methodNode : classNode.methods) {
-            System.out.println(methodNode.name);
+            System.out.println(methodNode.name + " " + methodNode.desc);
             TreePrint.prettyPrint(methodNode);
             System.out.println();
         }
+        System.out.println();
+        System.out.println();
+        System.out.println();
         return false;
     }
 

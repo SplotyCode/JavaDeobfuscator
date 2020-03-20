@@ -1,11 +1,11 @@
 package io.github.splotycode.deobfuscator;
 
-import io.github.splotycode.deobfuscator.module.Module;
-import io.github.splotycode.deobfuscator.module.PrettyPrintModule;
-import io.github.splotycode.deobfuscator.module.StaticStringLength;
+import io.github.splotycode.deobfuscator.flow.FlowControl;
+import io.github.splotycode.deobfuscator.module.*;
 import jdk.internal.org.objectweb.asm.ClassReader;
 import jdk.internal.org.objectweb.asm.ClassWriter;
 import jdk.internal.org.objectweb.asm.tree.ClassNode;
+import lombok.Getter;
 import lombok.SneakyThrows;
 
 import java.io.File;
@@ -20,28 +20,37 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
+@Getter
 public class JavaDeobfuscator {
 
-    private static JavaDeobfuscator instance = new JavaDeobfuscator();
+    @Getter private static JavaDeobfuscator instance = new JavaDeobfuscator();
 
-    public static void main(String[] args) {}
+    public static void main(String[] args) {
+        instance.start();
+    }
 
-    private File inputFile = new File("java_kZKdm5.zip");
+    private File inputFile = new File("input2.jar");
     private File outputFile = new File("output.zip");
 
     private Map<String, ClassNode> classes = new HashMap<>();
     private ArrayList<Module> modules = new ArrayList<>();
     private ArrayList<ZipEntry> resources = new ArrayList<>();
 
+    private FlowControl flowControl = new FlowControl();
+
     private byte[] buffer = new byte[1024 * 4];
 
     {
         modules.add(new PrettyPrintModule());
         modules.add(new StaticStringLength());
+        modules.add(new RemoveUnusedMethods());
+        modules.add(new RenameModule());
+        modules.add(new StaticCalculation());
+        modules.add(new ArraySimplifier());
     }
 
     @SneakyThrows
-    public JavaDeobfuscator() {
+    public void start() {
         loadClasses();
         transformClasses();
         writeClasses();
@@ -77,11 +86,18 @@ public class JavaDeobfuscator {
         boolean changed = true;
         while (changed) {
             changed = false;
+            flowControl.update();
+            modules.forEach(Module::init);
             for (ClassNode classNode : classes.values()) {
                 for (Module module : modules) {
                     if (module.transform(classNode)) {
                         changed = true;
                     }
+                }
+            }
+            for (Module module : modules) {
+                if (module.postTransform()) {
+                    changed = true;
                 }
             }
         }

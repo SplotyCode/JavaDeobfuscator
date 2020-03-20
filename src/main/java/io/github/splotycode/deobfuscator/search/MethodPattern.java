@@ -1,8 +1,22 @@
 package io.github.splotycode.deobfuscator.search;
 
+import jdk.internal.org.objectweb.asm.tree.ClassNode;
 import jdk.internal.org.objectweb.asm.tree.MethodInsnNode;
+import jdk.internal.org.objectweb.asm.tree.MethodNode;
 
 public class MethodPattern {
+
+    public static String generatePattern(ClassNode classNode, MethodNode methodNode) {
+        return generatePattern(classNode.name, methodNode.name, methodNode.desc);
+    }
+
+    public static String generatePattern(MethodInsnNode methodInsnNode) {
+        return generatePattern(methodInsnNode.owner, methodInsnNode.name, methodInsnNode.desc);
+    }
+
+    public static String generatePattern(String owner, String name, String desc) {
+        return owner + "#" + name + " " + desc;
+    }
 
     private String owner, name, desc;
 
