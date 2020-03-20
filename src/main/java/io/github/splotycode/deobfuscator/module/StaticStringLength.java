@@ -25,7 +25,7 @@ public class StaticStringLength extends Module implements MethodCallSearch {
             LdcInsnNode previous = (LdcInsnNode) methodCall.getPrevious();
             if (previous.cst instanceof String) {
                 int length = ((String) previous.cst).length();
-                AbstractInsnNode instruction = InstructionUtil.getStoreInstruction(length);
+                AbstractInsnNode instruction = InstructionUtil.getStoreIntInstruction(length);
                 caller.instructions.set(methodCall, instruction);
                 caller.instructions.remove(previous);
                 return true;
