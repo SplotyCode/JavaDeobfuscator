@@ -4,14 +4,16 @@ import com.google.common.collect.HashMultimap;
 import io.github.splotycode.deobfuscator.JavaDeobfuscator;
 import io.github.splotycode.deobfuscator.search.MethodPattern;
 import jdk.internal.org.objectweb.asm.tree.ClassNode;
+import jdk.internal.org.objectweb.asm.tree.FieldNode;
 import jdk.internal.org.objectweb.asm.tree.MethodNode;
+import lombok.Getter;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Set;
 
-
+@Getter
 public class FlowControl {
 
     private HashMap<String, FlowClass> classes = new HashMap<>();
@@ -25,17 +27,26 @@ public class FlowControl {
         methodsSignature.clear();
         for (ClassNode classNode : JavaDeobfuscator.getInstance().getClasses().values()) {
             String name = classNode.name;
-            FlowClass clazz = new FlowClass(classNode);
+            FlowClass clazz = new FlowClass(classNode, true);
             classes.put(name, clazz);
             for (MethodNode methodNode : classNode.methods) {
-                FlowMethod method = new FlowMethod(methodNode, clazz, true);
+                FlowMethod method = new FlowMethod(methodNode, clazz);
                 methods.put(name, method);
+                clazz.getMethods().put(method.getName(), method);
                 methodsSignature.put(MethodPattern.generatePattern(classNode, methodNode), method);
+            }
+            for (FieldNode fieldNode : classNode.fields) {
+                FlowField field = new FlowField(fieldNode, clazz);
+                clazz.getFields().put(field.getName(), field);
             }
         }
         for (FlowClass clazz : classes.values()) {
             clazz.update(this);
         }
+    }
+
+    public Collection<FlowClass> getAllClasses() {
+        return classes.values();
     }
 
     public FlowClass getClass(String name) {

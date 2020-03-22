@@ -41,7 +41,7 @@ public class JavaDeobfuscator {
     private byte[] buffer = new byte[1024 * 4];
 
     {
-        modules.add(new PrettyPrintModule());
+        //modules.add(new PrettyPrintModule());
         modules.add(new StaticStringLength());
         modules.add(new RemoveUnusedMethods());
         modules.add(new RenameModule());

@@ -15,12 +15,9 @@ public class FlowMethod {
     private FlowMethod overrides;
     private ArrayList<FlowMethod> overriders = new ArrayList<>();
 
-    private boolean userCode;
-
-    public FlowMethod(MethodNode method, FlowClass clazz, boolean userCode) {
+    public FlowMethod(MethodNode method, FlowClass clazz) {
         this.method = method;
         this.clazz = clazz;
-        this.userCode = userCode;
     }
 
     public void update(FlowControl flowControl) {
