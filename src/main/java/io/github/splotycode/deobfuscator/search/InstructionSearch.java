@@ -12,7 +12,8 @@ public interface InstructionSearch {
         for (MethodNode methodNode : classNode.methods) {
             InsnList instructions = methodNode.instructions;
             for (int i = 0; i < instructions.size(); i++) {
-                if (onInstruction(methodNode, instructions.get(i))) {
+                AbstractInsnNode instruction = instructions.get(i);
+                if (instruction != null && onInstruction(methodNode, instruction)) {
                     changed = true;
                 }
             }

@@ -4,6 +4,8 @@ import jdk.internal.org.objectweb.asm.Type;
 import lombok.Getter;
 import lombok.ToString;
 
+import java.util.Objects;
+
 @Getter
 @ToString
 public class ValueStackType implements StackType {
@@ -24,5 +26,18 @@ public class ValueStackType implements StackType {
     @Override
     public boolean hasDeclarationType() {
         return true;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ValueStackType that = (ValueStackType) o;
+        return Objects.equals(type, that.type);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type);
     }
 }

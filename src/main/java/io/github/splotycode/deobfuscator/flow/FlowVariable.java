@@ -1,7 +1,9 @@
 package io.github.splotycode.deobfuscator.flow;
 
+import io.github.splotycode.deobfuscator.flow.stack.StackType;
 import jdk.internal.org.objectweb.asm.Type;
 
+import java.util.Collection;
 import java.util.Set;
 
 public interface FlowVariable {
@@ -10,12 +12,18 @@ public interface FlowVariable {
 
     Type baseType();
 
-    Set<Type> usedTypes();
-    Set<Object> staticValues();
+    Collection<FlowValue> values();
 
-    default boolean hasOnlyType(Type type) {
-        Set<Type> types = usedTypes();
-        return types != null && types.size() == 1 && types.contains(type);
+    FlowValue getConstantValue();
+
+    default boolean hasOnlyType(StackType type) {
+        Collection<FlowValue> types = values();
+        for (FlowValue value : types) {
+            if (!value.sourceKnown() || value.getType().equals(type)) {
+                return false;
+            }
+        }
+        return !types.isEmpty();
     }
 
     void update(FlowControl flowControl);

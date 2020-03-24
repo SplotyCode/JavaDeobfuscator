@@ -22,9 +22,12 @@ public class FlowControl {
     private HashMap<String, FlowMethod> methodsSignature = new HashMap<>();
 
     public void update() {
+        System.out.println("->Rebuilding flow control");
+
         classes.clear();
         methods.clear();
         methodsSignature.clear();
+
         for (ClassNode classNode : JavaDeobfuscator.getInstance().getClasses().values()) {
             String name = classNode.name;
             FlowClass clazz = new FlowClass(classNode, true);
@@ -51,6 +54,10 @@ public class FlowControl {
 
     public FlowClass getClass(String name) {
         return classes.get(name);
+    }
+
+    public FlowClass getClass(ClassNode classNode) {
+        return getClass(classNode.name);
     }
 
     public FlowMethod getMethod(String signature) {

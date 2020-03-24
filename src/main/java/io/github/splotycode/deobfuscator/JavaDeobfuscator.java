@@ -47,6 +47,7 @@ public class JavaDeobfuscator {
         modules.add(new RenameModule());
         modules.add(new StaticCalculation());
         modules.add(new ArraySimplifier());
+        modules.add(new StaticArrayModule());
     }
 
     @SneakyThrows
@@ -83,7 +84,7 @@ public class JavaDeobfuscator {
     }
 
     private void transformClasses() {
-        boolean changed = true;
+        /*boolean changed = true;
         while (changed) {
             changed = false;
             flowControl.update();
@@ -100,6 +101,31 @@ public class JavaDeobfuscator {
                     changed = true;
                 }
             }
+        }*/
+        int i = 0;
+        mainLoop: for (; i < 400; i++) {
+            flowControl.update();
+            for (Module module : modules) {
+                boolean changed = false;
+                module.init();
+                for (ClassNode classNode : classes.values()) {
+                    if (module.transform(classNode)) {
+                        changed = true;
+                    }
+                }
+                if (module.postTransform()) {
+                    changed = true;
+                }
+                if (changed) {
+                    continue mainLoop;
+                }
+            }
+            break;
+        }
+        if (i == 400) {
+            System.out.println("Recursion detected");
+        } else {
+            System.out.println("Finished with " + i + " cycles");
         }
     }
 

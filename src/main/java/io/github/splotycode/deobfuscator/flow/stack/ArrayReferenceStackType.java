@@ -8,6 +8,8 @@ import jdk.internal.org.objectweb.asm.tree.TypeInsnNode;
 import lombok.AllArgsConstructor;
 import lombok.ToString;
 
+import java.util.Objects;
+
 @ToString
 @AllArgsConstructor
 public class ArrayReferenceStackType implements StackType {
@@ -19,7 +21,7 @@ public class ArrayReferenceStackType implements StackType {
     public static ArrayReferenceStackType DOUBLE_ARRAY = new ArrayReferenceStackType(Type.getType("[D"));
     public static ArrayReferenceStackType BYTE_ARRAY = new ArrayReferenceStackType(Type.getType("[B"));
     public static ArrayReferenceStackType SHORT_ARRAY = new ArrayReferenceStackType(Type.getType("[S"));
-    public static ArrayReferenceStackType LONG_ARRAY = new ArrayReferenceStackType(Type.getType("[L"));
+    public static ArrayReferenceStackType LONG_ARRAY = new ArrayReferenceStackType(Type.getType("[J"));
 
     public static ArrayReferenceStackType byInstruction(AbstractInsnNode instruction) {
         if (instruction instanceof IntInsnNode) {
@@ -44,6 +46,10 @@ public class ArrayReferenceStackType implements StackType {
                     throw new IllegalStateException("Invalid array type on operand stack");
             }
         }
+        return byInstructionReference(instruction);
+    }
+
+    public static ArrayReferenceStackType byInstructionReference(AbstractInsnNode instruction) {
         return new ArrayReferenceStackType(Type.getType(((TypeInsnNode) instruction).desc));
     }
 
@@ -58,7 +64,25 @@ public class ArrayReferenceStackType implements StackType {
     }
 
     @Override
+    public boolean hasDeclarationType() {
+        return true;
+    }
+
+    @Override
     public boolean isReference() {
         return true;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ArrayReferenceStackType that = (ArrayReferenceStackType) o;
+        return Objects.equals(type, that.type);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type);
     }
 }

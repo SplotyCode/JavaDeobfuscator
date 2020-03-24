@@ -1,12 +1,16 @@
 package io.github.splotycode.deobfuscator.flow.stack;
 
+import com.sun.jmx.remote.internal.ArrayQueue;
+import io.github.splotycode.deobfuscator.util.InstructionUtil;
 import jdk.internal.org.objectweb.asm.Opcodes;
 import jdk.internal.org.objectweb.asm.Type;
 import jdk.internal.org.objectweb.asm.tree.AbstractInsnNode;
+import jdk.internal.org.objectweb.asm.tree.InsnList;
 import jdk.internal.org.objectweb.asm.tree.IntInsnNode;
 import jdk.internal.org.objectweb.asm.tree.LdcInsnNode;
+import lombok.Data;
 
-import java.util.HashMap;
+import java.util.*;
 
 public enum StackInstruction {
 
@@ -16,6 +20,7 @@ public enum StackInstruction {
     AASTORE(Opcodes.AASTORE, 3, 0),
     ACONST_NULL(Opcodes.ACONST_NULL, 0, 1),//TODO what is a null reference?
 
+    GETSTATIC(Opcodes.GETSTATIC, 0, 1),
 
     DUP(Opcodes.DUP, 1, 2) {
         @Override
@@ -27,6 +32,18 @@ public enum StackInstruction {
         boolean hasRedirect(int index) {
             return true;
         }
+
+        @Override
+        boolean hasInputRedirect(int index) {
+            return true;
+        }
+
+        private int[] inputRedirects = new int[] {1, 2};
+
+        @Override
+        int[] inputRedirect(int index) {
+            return inputRedirects;
+        }
     },
     IASTORE(Opcodes.IASTORE, 3, 0),
     NEWARRAY(Opcodes.NEWARRAY, 1, 1) {
@@ -35,6 +52,14 @@ public enum StackInstruction {
             return ArrayReferenceStackType.byInstruction(node);
         }
     },
+    ANEWARRAY(Opcodes.ANEWARRAY, 1, 1) {
+        @Override
+        StackType getType(AbstractInsnNode node, int index) {
+            return ArrayReferenceStackType.byInstructionReference(node);
+        }
+    },
+
+    IALOAD(Opcodes.IALOAD, 2, 1, false, ValueStackType.INT),
 
     ICONST_0(Opcodes.ICONST_0, 0, 1, false, 0, ValueStackType.INT),
     ICONST_1(Opcodes.ICONST_1, 0, 1, false, 1, ValueStackType.INT),
@@ -72,7 +97,11 @@ public enum StackInstruction {
     private static HashMap<Integer, StackInstruction> instructions = new HashMap<>();
 
     public static StackInstruction getInstruction(int opCode) {
-        return instructions.get(opCode);
+        StackInstruction instruction = instructions.get(opCode);
+        if (instruction == null) {
+            //System.out.println("unknown instruction: " + InstructionUtil.opCodeName(opCode));
+        }
+        return instruction;
     }
 
     public static StackInstruction getInstruction(AbstractInsnNode instructionNode) {
@@ -88,8 +117,71 @@ public enum StackInstruction {
         }
     }
 
-    public static StackValue guesStackValue(AbstractInsnNode position, int level) {
-        int valuesBefore = level;
+    public static ArrayList<StackNode> getUsages(AbstractInsnNode instructionNode, int index) {
+        ArrayList<StackNode> usages = new ArrayList<>();
+
+        ArrayList<Integer> search = new ArrayList<>();
+        search.add(index);
+        AbstractInsnNode position = instructionNode.getNext();
+        StackInstruction instruction = getInstruction(position);
+        while (instruction != null && !search.isEmpty()) {
+            if (instruction.manipulatePosition) {
+                return usages;
+            }
+            ListIterator<Integer> iterator = search.listIterator();
+            while (iterator.hasNext()) {
+                int currentSearch = iterator.next();
+                int indexAfter = currentSearch + instruction.stackDifference;
+                if (currentSearch > instruction.take) {
+                    iterator.set(indexAfter);
+                } else {
+                    iterator.remove();
+                    if (instruction.hasInputRedirect(currentSearch)) {
+                        for (int redirect : instruction.inputRedirect(currentSearch)) {
+                            iterator.add(redirect);
+                        }
+                    } else {
+                        usages.add(new StackNode(position, indexAfter));
+                    }
+                }
+            }
+
+            position = position.getNext();
+            instruction = getInstruction(position);
+        }
+        return usages;
+    }
+
+    @Data
+    public static class StackNode {
+
+        private final AbstractInsnNode instruction;
+        private final int argument;
+
+    }
+
+    public static boolean removeAllArguments(AbstractInsnNode instruction, InsnList instructionList) {
+        StackInstruction insn = getInstruction(instruction);
+        ArrayList<AbstractInsnNode> arguments = new ArrayList<>();
+        for (int i = 1; i < insn.take + 1; i++) {
+            StackValue argument = guesStackValue(instruction, i, false);
+            if (argument == null) {
+                return false;
+            }
+            arguments.add(argument.getCreator());
+        }
+        for (AbstractInsnNode argument : arguments) {
+            instructionList.remove(argument);
+        }
+        return true;
+    }
+
+    public static StackValue guesStackValue(AbstractInsnNode position, int index) {
+        return guesStackValue(position, index, true);
+    }
+
+    public static StackValue guesStackValue(AbstractInsnNode position, int index, boolean followRedirects) {
+        int valuesBefore = index;
         AbstractInsnNode currentPosition = position;
         StackInstruction instruction;
 
@@ -103,21 +195,31 @@ public enum StackInstruction {
                 if (valuesBefore <= instruction.put) {
                     break;
                 }
-                valuesBefore += instruction.take;
-                valuesBefore -= instruction.put;
+                valuesBefore -= instruction.stackDifference;
 
                 currentPosition = currentPosition.getPrevious();
                 instruction = getInstruction(currentPosition);
             }
-        } while (instruction != null && instruction.hasRedirect(0) && (valuesBefore = instruction.redirect(0)) != 0);//TODO index?
+        } while (followRedirects && instruction != null &&
+                instruction.hasRedirect(stackIndexToArgumentIndex(valuesBefore, instruction.put)) &&
+                (valuesBefore = instruction.put - instruction.redirect(stackIndexToArgumentIndex(valuesBefore, instruction.put))) >= 0
+        );
 
         if (currentPosition == null || instruction == null) {
             return null;
         }
 
-        StackType type = instruction.getType(currentPosition, 0);//TODO index?
-        Object value = instruction.getValue(currentPosition, 0);//TODO index?
+        int argument = stackIndexToArgumentIndex(valuesBefore, instruction.put);
+        StackType type = instruction.getType(currentPosition, argument);
+        Object value = instruction.getValue(currentPosition, argument);
         return new StackValue(currentPosition, type, value);
+    }
+
+    private static int stackIndexToArgumentIndex(int index, int arguments) {
+        if (index == 0) {
+            index = 1;
+        }
+        return arguments - index;
     }
 
     private int opCode;
@@ -152,7 +254,15 @@ public enum StackInstruction {
     }
 
     int redirect(int index) {
-        throw new IllegalArgumentException();
+        throw new IllegalStateException(name() + " does not redirect");
+    }
+
+    boolean hasInputRedirect(int index) {
+        return false;
+    }
+
+    int[] inputRedirect(int index) {
+        throw new IllegalStateException(name() + " does not redirect inputs");
     }
 
     Object getValue(AbstractInsnNode node, int index) {
@@ -160,7 +270,7 @@ public enum StackInstruction {
     }
 
     StackType getType(AbstractInsnNode node, int index) {
-        if (index > staticOutputTypes.length - 1) {
+        if (staticOutputTypes.length == 0) {
             return null;
         }
         return staticOutputTypes[index];

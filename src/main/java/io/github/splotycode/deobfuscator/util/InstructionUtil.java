@@ -2,6 +2,9 @@ package io.github.splotycode.deobfuscator.util;
 
 import jdk.internal.org.objectweb.asm.Opcodes;
 import jdk.internal.org.objectweb.asm.tree.*;
+import jdk.internal.org.objectweb.asm.util.Printer;
+
+import java.util.Collection;
 
 public final class InstructionUtil {
 
@@ -74,6 +77,26 @@ public final class InstructionUtil {
 
     public static boolean sameField(FieldInsnNode one, FieldInsnNode two) {
         return one.name.equals(two.name) && one.owner.equals(two.owner) && one.desc.equals(two.desc);
+    }
+
+    public static String opCodeName(AbstractInsnNode instruction) {
+        return opCodeName(instruction.getOpcode());
+    }
+
+    public static String opCodeNames(Collection<AbstractInsnNode> instructions) {
+        StringBuilder builder = new StringBuilder();
+        for (AbstractInsnNode instruction : instructions) {
+            builder.append(opCodeName(instruction)).append(", ");
+        }
+        if (builder.length() != 0) {
+            builder.setLength(builder.length() - 2);
+        }
+        return builder.toString();
+    }
+
+    public static String opCodeName(int opCode) {
+        String[] names = Printer.OPCODES;
+        return opCode - 1 > names.length ? "Unknown" : names[opCode];
     }
 
 }

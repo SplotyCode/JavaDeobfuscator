@@ -2,28 +2,26 @@ package io.github.splotycode.deobfuscator.flow;
 
 import io.github.splotycode.deobfuscator.flow.stack.StackInstruction;
 import io.github.splotycode.deobfuscator.flow.stack.StackValue;
-import io.github.splotycode.deobfuscator.flow.stack.ValueStackType;
 import io.github.splotycode.deobfuscator.search.InstructionSearch;
+import io.github.splotycode.deobfuscator.util.InstructionUtil;
 import jdk.internal.org.objectweb.asm.Opcodes;
 import jdk.internal.org.objectweb.asm.Type;
-import jdk.internal.org.objectweb.asm.tree.AbstractInsnNode;
-import jdk.internal.org.objectweb.asm.tree.FieldInsnNode;
-import jdk.internal.org.objectweb.asm.tree.FieldNode;
-import jdk.internal.org.objectweb.asm.tree.MethodNode;
+import jdk.internal.org.objectweb.asm.tree.*;
 import lombok.Getter;
 
 import java.lang.reflect.Modifier;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 @Getter
 public class FlowField implements FlowVariable, InstructionSearch {
 
     private FieldNode fieldNode;
     private FlowClass flowClass;
-    private HashSet<Type> usedTypes = new HashSet<>();
-    private HashSet<Object> staticValues = new HashSet<>();
+    private List<FlowValue> values = new ArrayList<>();
     private Type baseType;
+
+    private ArrayList<AbstractInsnNode> writes = new ArrayList<>();
+    private HashMap<AbstractInsnNode, InsnList> reads = new HashMap<>();
 
     public FlowField(FieldNode fieldNode, FlowClass flowClass) {
         this.fieldNode = fieldNode;
@@ -41,19 +39,10 @@ public class FlowField implements FlowVariable, InstructionSearch {
     }
 
     @Override
-    public Set<Type> usedTypes() {
-        return usedTypes;
-    }
-
-    @Override
-    public Set<Object> staticValues() {
-        return staticValues;
-    }
-
-    @Override
     public void update(FlowControl flowControl) {
-        usedTypes.clear();
-        staticValues.clear();
+        values.clear();
+        writes.clear();
+        reads.clear();
 
         baseType = Type.getType(fieldNode.desc);
         if (Modifier.isPrivate(fieldNode.access)) {
@@ -63,23 +52,45 @@ public class FlowField implements FlowVariable, InstructionSearch {
                 search(clazz.getClassNode());
             }
         }
+
+        for (Map.Entry<AbstractInsnNode, InsnList> instruction : reads.entrySet()) {
+            for (FlowValue value : values) {
+                value.trackUsage(instruction.getKey(), instruction.getValue());
+            }
+        }
+    }
+
+    private boolean matches(FieldInsnNode fieldInstruction) {
+        return fieldInstruction.owner.equals(flowClass.getName()) &&
+                fieldInstruction.name.equals(getName()) &&
+                fieldInstruction.desc.equals(baseType().getDescriptor());
     }
 
     @Override
     public boolean onInstruction(MethodNode caller, AbstractInsnNode instruction) {
         if (instruction.getOpcode() == Opcodes.PUTSTATIC) {
             FieldInsnNode field = (FieldInsnNode) instruction;
-            if (field.owner.equals(flowClass.getName()) && field.name.equals(getName()) && field.desc.equals(baseType().getDescriptor())) {
-                StackValue value = StackInstruction.guesStackValue(field, 1);
-                System.out.println(getName() + " " + value);
-                if (value != null && value.getType().hasDeclarationType()) {
-                    if (value.getStaticValue() != null) {
-                        staticValues.add(value.getStaticValue());
-                    }
-                    usedTypes.add(((ValueStackType) value.getType()).getType());
-                }
+            if (matches(field)) {
+                StackValue source = StackInstruction.guesStackValue(field, 1);
+                values.add(new FlowValue(source, caller.instructions));
+                writes.add(field);
+            }
+        } else if (instruction.getOpcode() == Opcodes.GETSTATIC) {
+            FieldInsnNode field = (FieldInsnNode) instruction;
+            if (matches(field)) {
+                reads.put(field, caller.instructions);
             }
         }
         return false;
+    }
+
+    @Override
+    public Collection<FlowValue> values() {
+        return values;
+    }
+
+    @Override
+    public FlowValue getConstantValue() {
+        return values.size() == 1 ? values.get(0) : null;
     }
 }
